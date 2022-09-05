@@ -344,15 +344,15 @@ std::vector<GLint> indices;
 
 void GenTestArray(array3D& arr)
 {
-	int count = 0;
+	
 	for (int x=0; x < arr.n; ++x)
 	{
 		for (int y=0; y < arr.n; ++y)
 		{
 			for (int z=0; z < arr.n; ++z)
 			{	
-				arr.a[x][y][z] = x%2 *y&2 + z % 2;
-				count++;
+				arr.a[x][y][z] = 0;
+				
 			}
 		}
 	}
@@ -379,6 +379,22 @@ void GenTestArray(array3D& arr)
 				arr.a[x][y][z] = 0;
 			}
 		}
+	}
+}
+void doAnimate(array3D &arr,float t) {
+
+	for (int x = 0; x < arr.n; ++x)
+	{
+		
+			for (int y = 0; y < arr.n; ++y)
+			{
+				for (int z = 0; z < arr.n; ++z)
+				{
+					arr.a[x][y][z] *= sin(t);
+				}
+			}
+		
+
 	}
 }
 int main()
@@ -501,7 +517,7 @@ while (!glfwWindowShouldClose(window))
 	// Assigns different transformations to each matrix
 	model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
 	model = glm::rotate(model, glm::radians(rotationvert), glm::vec3(0.0f, 0.0f, 1.0f));
-	view = glm::translate(view, glm::vec3(translateX,translateY, translateZ));
+	view = glm::translate(view, glm::vec3(translateX-0.3,translateY-0.3, translateZ-1));
 	proj = glm::perspective(glm::radians(100.0f), (float)width / height, 0.1f, 100.0f);
 
 	// Outputs the matrices into the Vertex Shader
@@ -566,7 +582,7 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array
 
 				
 			int configIndex = 0;
-			float surfacelevel = 0.5;
+			float surfacelevel = 0.8;
 
 			if (cube[0] < surfacelevel) configIndex |= 1;
 			if (cube[1] < surfacelevel) configIndex |= 2;
@@ -609,9 +625,9 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array
 							//Final pos to be added
 							GLfloat vert3pos[3] = { (((vert1pos[0] + vert2pos[0])) / 2) + x,(((vert1pos[1] + vert2pos[1])) / 2) + y ,(((vert1pos[2] + vert2pos[2])) / 2) + z };
 
-							vertices.push_back(vert3pos[0] / 15);
-							vertices.push_back(vert3pos[1]/ 15);
-							vertices.push_back(vert3pos[2]/ 15);
+							vertices.push_back(vert3pos[0] / 60);
+							vertices.push_back(vert3pos[1]/ 60);
+							vertices.push_back(vert3pos[2]/ 60);
 							indices.push_back(indices.size());
 							indices.push_back(indices.size());
 							indices.push_back(indices.size());
@@ -642,7 +658,7 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array
 }
 void keycallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	const GLfloat rotationspeed = 10;
+	const GLfloat rotationspeed = 2;
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT)
 	{
