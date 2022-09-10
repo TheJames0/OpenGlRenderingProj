@@ -2,7 +2,6 @@
 #include<filesystem>
 //namespace fs = std::filesystem;
 //------------------------------
-
 #include<iostream>
 #include<glad.h>
 #include<GLFW/glfw3.h>
@@ -15,10 +14,11 @@
 #include"VBO.h"
 #include"EBO.h"
 #include <vector>
-
+#include "New_Fluid.h"
 
 //3 dimensional grid arraysize
 const int arraysize = 40;
+
 
 const unsigned int width = 800;
 const unsigned int height = 800;
@@ -29,7 +29,7 @@ float translateY;
 float translateZ;
 
 struct array3D {
-	int n = 40;
+	int n = arraysize;
 	float a[arraysize][arraysize][arraysize];
 };
 void keycallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -341,67 +341,11 @@ std::vector<GLfloat> vertices;
 std::vector<GLint> indices;
 
 
-
-void GenTestArray(array3D& arr)
-{
-	
-	for (int x=0; x < arr.n; ++x)
-	{
-		for (int y=0; y < arr.n; ++y)
-		{
-			for (int z=0; z < arr.n; ++z)
-			{	
-				arr.a[x][y][z] = 0;
-				
-			}
-		}
-	}
-	int range = arr.n / 4;
-
-	for (int x = arr.n/2 - range; x < arr.n / 2 + range; ++x)
-	{
-		for (int y = arr.n / 2 - range; y < arr.n / 2 + range; ++y)
-		{
-			for (int z = arr.n / 2 - range; z < arr.n / 2 + range; ++z)
-			{
-				arr.a[x][y][z] = 1;
-			}
-		}
-	}
-	int rangea = arr.n / 8;
-	int rangey = arr.n / 2;
-	for (int x = arr.n / 2 - rangea; x < arr.n / 2 + rangea; ++x)
-	{
-		for (int y = arr.n / 2 - rangey; y < arr.n / 2 + rangey; ++y)
-		{
-			for (int z = arr.n / 2 - rangea; z < arr.n / 2 + rangea; ++z)
-			{
-				arr.a[x][y][z] = 0;
-			}
-		}
-	}
-}
-void doAnimate(array3D &arr,float t) {
-
-	for (int x = 0; x < arr.n; ++x)
-	{
-		
-			for (int y = 0; y < arr.n; ++y)
-			{
-				for (int z = 0; z < arr.n; ++z)
-				{
-					arr.a[x][y][z] *= sin(t);
-				}
-			}
-		
-
-	}
-}
 int main()
 {
 	// Initialize GLFW
 	glfwInit();
-
+	
 	// Tell GLFW what version of OpenGL we are using 
 	// In this case we are using OpenGL 3.3
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -478,15 +422,78 @@ double prevTime = glfwGetTime();
 glEnable(GL_DEPTH_TEST);
 
 
-//GENERATE 3D Test ARRAY
+//GENERATE 3D Test ARRAY 
 // 
-const int n = 50;
+const int n = arraysize;
 array3D tstarray;
-GenTestArray(tstarray);
+
+//INIT FLUID
+
+
+// update time delta
+float dt = 0.00001f;
+// interval between each grid
+float dx = 1.f;
+float damping = 0.999999f;
+// number of iteration in Gauss-Sidel method
+int p_solver_iters = 120;
+float g = -9.8f;
+
+const float vorticity_strength = 6.0f;
+
+VectorField vel;
+VectorField new_vel;
+VectorField vorticity_force;
+ScalarField divergence;
+ScalarField curl;
+ScalarField pressure;
+ScalarField new_pressure;
+ScalarField dye;
+ScalarField new_dye;
+
+
 
 // Main while loop
 while (!glfwWindowShouldClose(window))
 {
+	std::cout << vel.x[IXY(arraysize/2,arraysize/2,arraysize/2,n)] << std::endl;
+	
+				dye.v[IXY(20, 20, 20, arraysize)] = 1000;
+				vel.y[IXY(20, 20, 20, arraysize)] = 50000;
+			
+		
+	
+	//Update Fluid
+	advection_velocity(n, vel, new_vel, dt, damping);
+
+	
+	advection(n, vel, dye,new_dye, dt, damping);
+	vel.swap(new_vel);
+	dye.swap(new_dye);
+	//add src
+
+	//get_curl(n, vel, curl);
+	//vorticity_confinement(n, vel, curl, vorticity_force, vorticity_strength, dt);
+
+	for (int i = 0; i < p_solver_iters; i++)
+	{
+		pressure_gauss_sidel(n, divergence, pressure, new_pressure);
+		pressure.swap(new_pressure);
+	}
+	// apply pressure to velocity field
+	subtract_gradient(n ,vel, pressure);
+	for (int z = 0; z < n; z++)
+	{
+		for (int y = 0; y < n; y++)
+		{
+			for (int x = 0; x < n; x++)
+			{
+				
+				tstarray.a[x][y][z] = dye.v[IXY(x, y, z, n)];
+			}
+		}
+	}
+
 	// Specify the color of the background
 	glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
 	// Clean the back buffer and depth buffer
@@ -545,9 +552,6 @@ while (!glfwWindowShouldClose(window))
 	VBO1.Delete();
 	EBO1.Delete();
 }
-
-
-
 // Delete all the objects we've created
 VAO1.Delete();
 //brickTex.Delete();
@@ -561,12 +565,11 @@ return 0;
 
 void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array3D arr)
 {
-	
-	for (int x = 0; x < arr.n; x++)
+	for (int x = 0; x < arr.n ; x++)
 	{
-		for (int y = 0; y < arr.n; y++)
+		for (int y =0; y < arr.n ; y++)
 		{
-			for (int z = 0; z < arr.n; z++)
+			for (int z = 0; z < arr.n ; z++)
 			{
 				float cube[8];
 				for (int n = 0; n < 8; n++)
@@ -576,13 +579,13 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array
 						int j = CornerTable[n][1] + y;
 						int k = CornerTable[n][2] + z;
 						cube[n] = arr.a[i][j][k];
-					
+						
 				}
 				
 
 				
 			int configIndex = 0;
-			float surfacelevel = 0.8;
+			float surfacelevel = 1;
 
 			if (cube[0] < surfacelevel) configIndex |= 1;
 			if (cube[1] < surfacelevel) configIndex |= 2;

@@ -50,6 +50,9 @@
     <ClInclude Include="Fluid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="New_Fluid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="default.frag">
