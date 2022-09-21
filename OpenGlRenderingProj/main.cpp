@@ -17,11 +17,11 @@
 #include "New_Fluid.h"
 
 //3 dimensional grid arraysize
-const int arraysize = 40;
+const int arraysize = N;
 
 
-const unsigned int width = 800;
-const unsigned int height = 800;
+const unsigned int width = 1920;
+const unsigned int height = 1080;
 float rotation;
 float rotationvert;
 float translateX;
@@ -33,7 +33,7 @@ struct array3D {
 	float a[arraysize][arraysize][arraysize];
 };
 void keycallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-void cubeMarch(std::vector<GLfloat> &vertices,std::vector<GLint> &indices,array3D arr);
+void cubeMarch(std::vector<GLfloat> &vertices,std::vector<GLint> &indices,ScalarField& arr,std::vector<GLfloat> &vertexalpha);
 //LOOKUP TABLES --------------------------------------
 /*
 credit goes to paul bourke sourced from http ://paulbourke.net/geometry/polygonise/
@@ -50,6 +50,9 @@ int CornerTable[8][3] = {
 	  {1, 0, 1},
 	  {1, 1, 1},
 	  {0, 1, 1}
+};
+int EdgeIndexes[12][2] = {
+	{0,1},{1,2},{3,2},{0,3},{4,5} ,{5,6} ,{7,6} ,{4,7}, {0,4} ,{1,5} ,{2,6} ,{3,7}
 };
 //First dimension is specific cube edge
 //Second dimension is corrosponding edge counterpart to check
@@ -336,6 +339,9 @@ int TriangleTable[256][16]=
 
 std::vector<GLfloat> vertices;
 
+//Alpha VBO
+
+std::vector<GLfloat> vertexalpha;
 
 // Indices for vertices order
 std::vector<GLint> indices;
@@ -356,7 +362,7 @@ int main()
 
 	
 	// Create a GLFWwindow object of 800 by 800 pixels, naming it "YoutubeOpenGL"
-	GLFWwindow* window = glfwCreateWindow(width, height, "Pyramidz", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(width, height, "Fluid Sim Version 1.0", NULL, NULL);
 	// Error check if the window fails to create
 	glfwSetKeyCallback(window, keycallback);
 	if (window == NULL)
@@ -431,15 +437,15 @@ array3D tstarray;
 
 
 // update time delta
-float dt = 0.00001f;
+float dt = 0.00000000001f;
 // interval between each grid
 float dx = 1.f;
 float damping = 0.999999f;
 // number of iteration in Gauss-Sidel method
-int p_solver_iters = 120;
+int p_solver_iters = 240;
 float g = -9.8f;
 
-const float vorticity_strength = 6.0f;
+const float vorticity_strength = 80.0f;
 
 VectorField vel;
 VectorField new_vel;
@@ -453,28 +459,40 @@ ScalarField new_dye;
 
 
 
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+glEnable(GL_BLEND);
+
+
+
+
 // Main while loop
 while (!glfwWindowShouldClose(window))
 {
-	std::cout << vel.x[IXY(arraysize/2,arraysize/2,arraysize/2,n)] << std::endl;
 	
-				dye.v[IXY(20, 20, 20, arraysize)] = 1000;
-				vel.y[IXY(20, 20, 20, arraysize)] = 50000;
+
+	vel.y[IXY((n / 2), 6, (n / 2), n)] = -200;
+	for (int x = 0; x < n; x++)
+		for (int y = 0; y < n; y++)
+		for (int z = 0; z < n; z++)
+
+		{
+			dye.v[IXY(n/2, 7, n/2, n)] = 1;
 			
-		
-	
+		}
+
+
 	//Update Fluid
 	advection_velocity(n, vel, new_vel, dt, damping);
-
 	
 	advection(n, vel, dye,new_dye, dt, damping);
 	vel.swap(new_vel);
 	dye.swap(new_dye);
 	//add src
-
-	//get_curl(n, vel, curl);
-	//vorticity_confinement(n, vel, curl, vorticity_force, vorticity_strength, dt);
-
+	
+	get_divergence(N, vel, divergence);
+	
+	
+	
 	for (int i = 0; i < p_solver_iters; i++)
 	{
 		pressure_gauss_sidel(n, divergence, pressure, new_pressure);
@@ -482,18 +500,7 @@ while (!glfwWindowShouldClose(window))
 	}
 	// apply pressure to velocity field
 	subtract_gradient(n ,vel, pressure);
-	for (int z = 0; z < n; z++)
-	{
-		for (int y = 0; y < n; y++)
-		{
-			for (int x = 0; x < n; x++)
-			{
-				
-				tstarray.a[x][y][z] = dye.v[IXY(x, y, z, n)];
-			}
-		}
-	}
-
+	vorticity_confinement(n, vel, curl, vorticity_force, vorticity_strength, dt);
 	// Specify the color of the background
 	glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
 	// Clean the back buffer and depth buffer
@@ -505,17 +512,18 @@ while (!glfwWindowShouldClose(window))
 	double crntTime = glfwGetTime();
 	vertices.clear();
 	indices.clear();
-	cubeMarch(vertices, indices,tstarray);
+	vertexalpha.clear();
+	cubeMarch(vertices, indices,dye,vertexalpha);
 
 	// Generates Vertex Buffer Object and links it to vertices
 	VBO VBO1(vertices, vertices.size() * sizeof(GLfloat));
 	// Generates Element Buffer Object and links it to indices
 	EBO EBO1(indices, indices.size() * sizeof(GLint));
-
+	//Link vertex alpha data
+	VBO ABO1(vertexalpha, vertices.size() * sizeof(GLfloat));
 	// Links VBO attributes such as coordinates and colors to VAO
-	//ONLY VERTEX DATA BEING USED CURRENTLY
 	VAO1.LinkAttrib(VBO1, 0, 3, GL_FLOAT, 3 * sizeof(float), (void*)0);
-
+	VAO1.LinkAttrib(ABO1, 1, 3, GL_FLOAT, 3*sizeof(float), (void*)0);
 	// Initializes matrices so they are not the null matrix
 	glm::mat4 model = glm::mat4(1.0f);
 	glm::mat4 view = glm::mat4(1.0f);
@@ -534,8 +542,6 @@ while (!glfwWindowShouldClose(window))
 	glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 	int projLoc = glGetUniformLocation(shaderProgram.ID, "proj");
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
-	//MarchCube
-
 
 	// Assigns a value to the uniform; NOTE: Must always be done after activating the Shader Program
 	glUniform1f(uniID, 0.5f);
@@ -562,14 +568,17 @@ glfwDestroyWindow(window);
 glfwTerminate();
 return 0;
 }
-
-void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array3D arr)
+float sampleDye(int x, int y, int z, ScalarField &arr)
 {
-	for (int x = 0; x < arr.n ; x++)
+	return  arr.v[IXY(x, y, z, arraysize)];
+}
+void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,ScalarField &arr, std::vector<GLfloat>& vertexalpha)
+{
+	for (int x = 1; x < arraysize - 1; x++)
 	{
-		for (int y =0; y < arr.n ; y++)
+		for (int y =1; y < arraysize - 1 ; y++)
 		{
-			for (int z = 0; z < arr.n ; z++)
+			for (int z = 1; z < arraysize - 1 ; z++)
 			{
 				float cube[8];
 				for (int n = 0; n < 8; n++)
@@ -578,14 +587,14 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array
 						int i = CornerTable[n][0] + x;
 						int j = CornerTable[n][1] + y;
 						int k = CornerTable[n][2] + z;
-						cube[n] = arr.a[i][j][k];
+						cube[n] = sampleDye(i,j,k,arr);
 						
 				}
 				
 
 				
 			int configIndex = 0;
-			float surfacelevel = 1;
+			float surfacelevel = 0.01;
 
 			if (cube[0] < surfacelevel) configIndex |= 1;
 			if (cube[1] < surfacelevel) configIndex |= 2;
@@ -624,13 +633,32 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,array
 							GLfloat vert1pos[3] = { EdgeTable[indice][0][0],EdgeTable[indice][0][1],EdgeTable[indice][0][2] };
 
 							GLfloat vert2pos[3] = { EdgeTable[indice][1][0],EdgeTable[indice][1][1],EdgeTable[indice][1][2] };
+							//Interpolated Value
+							float vert1sample = cube[EdgeIndexes[indice][0]];
+							float vert2sample = cube[EdgeIndexes[indice][1]];
+							float difference = vert2sample - vert1sample;
+							if (difference == 0)
+							{
+								difference = surfacelevel;
+							}
+							else
+							{
+								difference = (surfacelevel - vert1sample) / difference;
+							}
+							GLfloat vert3pos[3] = { (vert1pos[0] +( vert2pos[0] - vert1pos[0]) * difference) + x,
+								(vert1pos[1] + (vert2pos[1] - vert1pos[1]) * difference) + y ,
+								(vert1pos[2] + (vert2pos[2] - vert1pos[2]) * difference) + z };
 
 							//Final pos to be added
-							GLfloat vert3pos[3] = { (((vert1pos[0] + vert2pos[0])) / 2) + x,(((vert1pos[1] + vert2pos[1])) / 2) + y ,(((vert1pos[2] + vert2pos[2])) / 2) + z };
-
+							// Averaged method  GLfloat vert3pos[3] = { (((vert1pos[0] + vert2pos[0])) / 2f) + x,(((vert1pos[1] + vert2pos[1])) / 2) + y ,(((vert1pos[2] + vert2pos[2])) / 2) + z };
+							float averaged = difference * 0.5;
 							vertices.push_back(vert3pos[0] / 60);
 							vertices.push_back(vert3pos[1]/ 60);
 							vertices.push_back(vert3pos[2]/ 60);
+							vertexalpha.push_back(averaged);
+							vertexalpha.push_back(averaged);
+							vertexalpha.push_back(averaged);
+							
 							indices.push_back(indices.size());
 							indices.push_back(indices.size());
 							indices.push_back(indices.size());

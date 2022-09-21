@@ -27,7 +27,7 @@ void main()
 	// Outputs the positions/coordinates of all vertices
 	gl_Position = proj * view * model * vec4(aPos, 1.0);
 	// Assigns the colors from the Vertex Data to "color"
-	color = vec4(aPos.x,aPos.y,aPos.z,1.0);
+	color = vec4(aPos.x*2,aPos.y*2,aPos.z*2,1.0);
 	// Assigns the texture coordinates from the Vertex Data to "texCoord"
 	texCoord = aTex;
 }

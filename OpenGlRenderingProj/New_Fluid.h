@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-const int N = 40;
+const int N = 35;
 
 //Used to represent all vector elements and store in array.
 struct VectorField 
@@ -31,11 +31,11 @@ struct VectorField
     void normalize(int index)
     {
         
-        float mag = std::sqrtf(std::pow(x[index], 2)+ std::pow(y[index], 2)+ std::pow(z[index], 2));
+        float mag = std::sqrt(x[index] * x[index] + y[index] * y[index]);
         this->x[index] = x[index] / mag;
         this->y[index] = y[index] / mag;
-        this->z[index] = z[index] / mag;
     }
+
 };
 //Only Scalar value kept in struct for expandability and easy parameter pass.
 struct ScalarField 
@@ -85,11 +85,22 @@ struct SingleVector
     SingleVector VectorSubtraction(SingleVector vector) {
         return SingleVector(x - vector.x, y - vector.y, z - vector.z);
     }
+    void normalize()
+    {
+
+        float mag = magnitude();
+        this->x = x / mag;
+        this->y = y / mag;
+    }
+    float magnitude()
+    {
+        return std::sqrt((x * x) + (y * y));
+    }
 };
 
 int IXY(int x, int y, int z, int N)
 {
-    return (N * N * z) + (y *N) + x;
+    return (N * N * z) + (y * N) + x;
 }
 int min(float a, float b)
 {
@@ -123,7 +134,7 @@ SingleVector lerp(SingleVector l, SingleVector r, float t)
     SingleVector b = r.VectorSubtraction(l);
     SingleVector c = b.FullScalarMultiply(t);
     SingleVector a = l.VectorAddition(c);
-    return c;
+    return a;
 
 
 }
@@ -188,7 +199,7 @@ float bilerp_velocity(const int N, VectorField& qf,SingleVector p, int index)
     {
         return lerpg.y;
     }
-    else
+    else if (index == 2)
     {
         return lerpg.z;
     }
@@ -220,11 +231,11 @@ float lerpSCALAR(float l, float r, float t)
 }
 float sampleSCALAR(const int N, ScalarField& qf, float i, float j, float k)
 {
-    int x = static_cast<int>(i);
+    int x = (i);
     x = max(0, min(N - 1, x));
-    int y = static_cast<int>(j);
+    int y = (j);
     y = max(0, min(N - 1, y));
-    int z = static_cast<int>(k);
+    int z = (k);
     z = max(0, min(N - 1, z));
    
    
@@ -266,9 +277,9 @@ SingleVector bilerp(const int N, VectorField& qf, SingleVector& p)
 }
 float bilerpSCALAR(const int N, ScalarField & qf, SingleVector & p)
 {
-    float s = p.x - 0.5f;
-    float t = p.y - 0.5f;
-    float k = p.z - 0.5f;
+    float s = p.x - 0.5;
+    float t = p.y - 0.5;
+    float k = p.z - 0.5;
     float iu = floor(s);
     float iv = floor(t);
     float ik = floor(k);
@@ -329,8 +340,8 @@ void advection(const int N, VectorField& vel, ScalarField& qf, ScalarField& new_
             for (int i = 0; i < N; i++)
             {
                 SingleVector p(i + .5f, j + .5f, k + .5f);
-                p = backtrace(N, p, dt, vel).FullScalarMultiply(damping);
-
+                p = backtrace(N, p, dt, vel);
+                p = p.FullScalarMultiply(damping);
                 //Aquire new values from calculated backtrace p and bilerp new value into respective cell
                 new_qf.v[IXY(i, j, k, N)] = bilerpSCALAR(N, qf, p);
             }
@@ -383,88 +394,97 @@ void get_divergence(const int N, VectorField& vel, ScalarField& divergence)
         {
             for (int i = 0; i < N; i++)
             {
-                float vl = sample(N, vel, i, j,k).x;
+                float vl = sample(N, vel, i - 1, j,k).x;
                 float vr = sample(N, vel, i + 1, j,k).x;
-                float vb = sample(N, vel, i, j,k).y;
+                float vb = sample(N, vel, i , j - 1,k).y;
                 float vt = sample(N, vel, i, j + 1,k).y;
-                float vbb = sample(N, vel, i, j,k).z;
+                float vbb = sample(N, vel, i, j,k - 1).z;
                 float vf = sample(N, vel, i, j,k + 1).z;
 
-                divergence.v[IXY(i, j, k, N)] = vr - vl + vt - vb + vf - vbb;
+                divergence.v[IXY(i, j, k, N)] = ((vr - vl) + (vt - vb) + (vf - vbb))/4;
             }
         }
 }
-void get_curl(const int N, VectorField& vel, ScalarField& curl)
-{
-    for (int k = 0; k < N; k++)
-    {
-        for (int j = 0; j < N; j++)
-        {
-            for (int i = 0;i < N; i++)
-            {
-                SingleVector a(i, j + 0.5f, k);
-                SingleVector b(i + 1.0f, j + 0.5f, k + 1.0f);
-                SingleVector c(i + 0.5f, j + 1.0f, k + 1.0f);
-                SingleVector d(i + 0.5f, j, k);
-                SingleVector e (i, j, k + 0.5f);
-                SingleVector f(i + 1.0f, j + 1.0f, k + 0.5f);
-                float vl = bilerp_velocity(N, vel, a, 1);
-                float vr = bilerp_velocity(N, vel, b, 1);
-                float vt = bilerp_velocity(N, vel, c, 0);
-                float vb = bilerp_velocity(N, vel, d, 0);
 
-                float vf = bilerp_velocity(N, vel, e, 2);
-                float vbb = bilerp_velocity(N, vel, f, 2);
-                //clockwise motion in 2 2d planes??
-                curl.v[IXY(i, j, k, N)] = vr - vt - vl + vb + vf - vt + vbb-vb;
-            }
-        }
-    }
-}
 void vorticity_confinement(const int N, VectorField& vel, ScalarField& curl,
     VectorField& curl_force,  float curl_strength, float  dt)
 {
-    float scale = 1e-3f;
-    for (int k = 0; k < N; k++)
+    static const float scale = 1e-3f;
+    for (int i = 0; i < N; i++)
         for (int j = 0; j < N; j++)
-            for (int i = 0; i < N; i++)
+            for (int k = 0; k < N; k++)
             {
-                float cl = sampleSCALAR(N, curl, i - 1, j, k);
-                float cr = sampleSCALAR(N, curl, i + 1, j, k);
-                float cb = sampleSCALAR(N, curl, i, j - 1, k);
-                float ct = sampleSCALAR(N, curl, i, j + 1, k);
-                float cc = sampleSCALAR(N, curl, i, j, k);
-                float cf = sampleSCALAR(N, curl, i, j, k - 1);
-                float cd = sampleSCALAR(N, curl, i, j, k + 1);
-                curl_force.x[IXY(i, j, k, N)] = abs(ct) - abs(cb);
-                    curl_force.y[IXY(i, j, k, N)] = abs(cl) - abs(cr);
-                    curl_force.z[IXY(i, j, k, N)] = abs(cf) - abs(cd);
-                 
-                    curl_force.normalize(IXY(i, j, k, N));
-               
-                     curl_force.x[IXY(i, j, k, N)] *= curl_strength * cc * dt;
-                     curl_force.y[IXY(i, j, k, N)] *= curl_strength * cc * dt;
-                     curl_force.z[IXY(i, j, k, N)] *= curl_strength * cc * dt;
-            }
+                SingleVector at = sample(N, vel, i -1, j + 1, k + 1);
+                SingleVector bt = sample(N, vel, i , j  + 1, k + 1);
+                SingleVector ct = sample(N, vel, i + 1, j + 1, k + 1);
+                SingleVector dt = sample(N, vel, i - 1, j + 1, k);
+                SingleVector et = sample(N, vel, i, j + 1, k);
+                SingleVector ft = sample(N, vel, i + 1, j + 1, k);
+                SingleVector gt = sample(N, vel, i - 1, j + 1, k - 1);
+                SingleVector ht = sample(N, vel, i, j + 1, k - 1);
+                SingleVector it = sample(N, vel, i + 1, j + 1, k - 1);
+                
 
-    for (int k = 0; k < N; k++)
-        for (int j = 0; j < N; j++)
-        {
-            for (int i = 0; i < N; i++)
-            {
-                SingleVector cl = sample(N, curl_force, i - 1, j, k);
-                SingleVector cb = sample(N, curl_force, i, j - 1, k);
-                SingleVector ce = sample(N, curl_force, i, j, k - 1);
-                SingleVector cc = sample(N, curl_force, i, j, k);
-                float fl = (cl.x - cc.x);
-                float fb = (cb.y - cc.y);
-                float fc = (ce.z - cc.z);
-                vel.x[IXY(i, j, k, N)] = min(1e4f, max(-1e4f, vel.x[IXY(i, j, k, N)] + fl));
-                vel.y[IXY(i, j, k, N)] = min(1e4f, max(-1e4f, vel.y[IXY(i, j, k, N)] + fb));
-                vel.z[IXY(i, j, k, N)] = min(1e4f, max(-1e4f, vel.z[IXY(i, j, k, N)] + fc));
+                SingleVector am = sample(N, vel, i - 1, j, k + 1);
+                SingleVector bm = sample(N, vel, i, j, k + 1);
+                SingleVector cm = sample(N, vel, i + 1, j, k + 1);
+                SingleVector dm = sample(N, vel, i - 1, j, k);
+                SingleVector em = sample(N, vel, i, j, k);
+                SingleVector fm = sample(N, vel, i + 1, j, k);
+                SingleVector gm = sample(N, vel, i - 1, j, k - 1);
+                SingleVector hm = sample(N, vel, i, j, k - 1);
+                SingleVector im = sample(N, vel, i + 1, j, k - 1);
+
+                SingleVector ab = sample(N, vel, i - 1, j - 1, k + 1);
+                SingleVector bb = sample(N, vel, i, j - 1, k + 1);
+                SingleVector cb = sample(N, vel, i + 1, j - 1, k + 1);
+                SingleVector db = sample(N, vel, i - 1, j - 1, k);
+                SingleVector eb = sample(N, vel, i, j - 1, k);
+                SingleVector fb = sample(N, vel, i + 1, j - 1, k);
+                SingleVector gb = sample(N, vel, i - 1, j - 1, k - 1);
+                SingleVector hb = sample(N, vel, i, j - 1, k - 1);
+                SingleVector ib = sample(N, vel, i + 1, j - 1, k - 1);
+
+                float div = ((et.y - eb.y) + (bm.z - hm.z) + (fm.x - dm.x )) / 3;
+                float p0 = 0;
+                float p1 = 0;
+                float p2 = 0;
+                float p3 = 0;
+                float p4 = 0;
+                float p5 = 0;
+                float p6 = 0;
+                //Gauss Siedel
+                //p0 = (p1 + p2 + p3 + p4 + p5 + p6 - div) / 6
+                for (int i = 0; i < 80; i++)
+                {
+                    p0 = (p1 + p2 + p3 + p4 + p5 + p6) - div / 4;
+                    p1 = 4 * p0 + div - (p2 + p3 + p4 + p5 + p6);
+                    p2 = 4 * p0 + div - (p1 + p3 + p4 + p5 + p6);
+                    p3 = 4 * p0 + div - (p1 + p2 + p4 + p5 + p6);
+                    p4 = 4 * p0 + div - (p1 + p2 + p3 + p5 + p6);
+                    p5 = 4 * p0 + div - (p1 + p2 + p3 + p4 + p6);
+                    p6 = 4 * p0 + div - (p1 + p2 + p3 + p4 + p5);
+                }
+                curl.v[IXY(i, j, k, N)] = p0;
             }
-        }
+   
+    for (int i = 1; i < N - 1; i++)
+        for (int j = 1; j < N - 1; j++)
+            for (int k = 1; k < N - 1; k++)
+            {
+                float left = curl.v[IXY(i - 1, j, k, N)];
+                float right = curl.v[IXY(i + 1, j, k, N)];
+                float up = curl.v[IXY(i , j + 1, k, N)];
+                float down = curl.v[IXY(i, j - 1, k, N)];
+                float forward = curl.v[IXY(i , j, k + 1, N)];
+                float backward = curl.v[IXY(i, j, k - 1, N)];
+
+                vel.x[IXY(i, j, k, N)] += (right - left) / 3;
+                vel.y[IXY(i, j, k, N)] += (up - down) /3;
+                vel.z[IXY(i, j, k, N)] += (forward - backward) / 3;
+            }
 }
+
 void subtract_gradient(const int N, VectorField& vel, ScalarField& pressure)
 {
     for (int k = 0; k < N; k++)
