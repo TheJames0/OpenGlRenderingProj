@@ -97,19 +97,22 @@ struct SingleVector
         return std::sqrt((x * x) + (y * y));
     }
 };
-
+//Index convert 3d to 1d array
 int IXY(int x, int y, int z, int N)
 {
     return (N * N * z) + (y * N) + x;
 }
+//Retrieves minimum value
 int min(float a, float b)
 {
     return a < b ? a : b;
 }
+//Retrieves maximum value
 int max(float a, float b)
 {
     return a > b ? a : b;
 }
+//Retrieves samples VectorComponent from Vector field
 SingleVector sample(const int N, VectorField& qf, float i, float j, float k)
 {
     int x = i;
@@ -125,6 +128,7 @@ SingleVector sample(const int N, VectorField& qf, float i, float j, float k)
     SingleVector vec(nx, ny, nz);
     return vec;
 }
+////linear interpolation of vector components
 SingleVector lerp(SingleVector l, SingleVector r, float t)
 {
     //return l + t * (r - l);
@@ -138,7 +142,8 @@ SingleVector lerp(SingleVector l, SingleVector r, float t)
 
 
 }
-float bilerp_velocity(const int N, VectorField& qf,SingleVector p, int index)
+//trilinear interpolation of velocity vectors and returns single index.
+float trilerp_velocity(const int N, VectorField& qf,SingleVector p, int index)
 {
 
     float s, t, k;
@@ -205,13 +210,14 @@ float bilerp_velocity(const int N, VectorField& qf,SingleVector p, int index)
     }
     
 }
+//Backtrace where vector field of effected cell originate
 SingleVector backtrace_velocity(const int N, SingleVector p, float dt, VectorField& vel)
 {
-    SingleVector v1(bilerp_velocity(N, vel, p, 0),bilerp_velocity(N, vel, p, 1),bilerp_velocity(N, vel, p, 2));
+    SingleVector v1(trilerp_velocity(N, vel, p, 0),trilerp_velocity(N, vel, p, 1),trilerp_velocity(N, vel, p, 2));
     SingleVector p1(p.x - 0.5 * dt * v1.x, p.y - 0.5 * dt * v1.y, p.z - 0.5 * dt * v1.z);
-    SingleVector v2(bilerp_velocity(N, vel, p1, 0), bilerp_velocity(N, vel, p1, 1), bilerp_velocity(N, vel, p1, 2));
+    SingleVector v2(trilerp_velocity(N, vel, p1, 0), trilerp_velocity(N, vel, p1, 1), trilerp_velocity(N, vel, p1, 2));
     SingleVector p2(p.x - 0.75 * dt * v2.x, p.y - 0.75 * dt * v2.y, p.z - 0.75 * dt * v2.z);
-    SingleVector v3(bilerp_velocity(N, vel, p2, 0), bilerp_velocity(N, vel, p2, 1), bilerp_velocity(N, vel, p2, 2));
+    SingleVector v3(trilerp_velocity(N, vel, p2, 0), trilerp_velocity(N, vel, p2, 1), trilerp_velocity(N, vel, p2, 2));
      SingleVector a1 = v1.FullScalarMultiply(2.f/9.f);
     a1 = a1.FullScalarMultiply(dt * -1.f);
     SingleVector a2 = v2.FullScalarMultiply(1.f / 3.f);
@@ -224,11 +230,12 @@ SingleVector backtrace_velocity(const int N, SingleVector p, float dt, VectorFie
     return p;
 }
 
-
+//linear interpolation with float output
 float lerpSCALAR(float l, float r, float t)
 {
     return l + t * (r - l);
 }
+//Sample a scalar value and return float
 float sampleSCALAR(const int N, ScalarField& qf, float i, float j, float k)
 {
     int x = (i);
@@ -241,7 +248,8 @@ float sampleSCALAR(const int N, ScalarField& qf, float i, float j, float k)
    
     return qf.v[IXY(x,y,z,N)];
 }
-SingleVector bilerp(const int N, VectorField& qf, SingleVector& p)
+//Bilinear interpolation of a vector component
+SingleVector trilerp(const int N, VectorField& qf, SingleVector& p)
 {
     float s = p.x - 0.5f;
     float t = p.y - 0.5f;
@@ -275,7 +283,8 @@ SingleVector bilerp(const int N, VectorField& qf, SingleVector& p)
 
            return lerpg;
 }
-float bilerpSCALAR(const int N, ScalarField & qf, SingleVector & p)
+//Trilinear interpolation returning float
+float trilerpSCALAR(const int N, ScalarField & qf, SingleVector & p)
 {
     float s = p.x - 0.5;
     float t = p.y - 0.5;
@@ -309,13 +318,14 @@ float bilerpSCALAR(const int N, ScalarField & qf, SingleVector & p)
 
     return lerpg;
 }
+//backtrace velocity for dye advection
 SingleVector backtrace(const int N, SingleVector p, float dt, VectorField& vel)
 {
-    SingleVector v1(bilerp(N, vel, p));
+    SingleVector v1(trilerp(N, vel, p));
     SingleVector p1((p.x - 0.5 * dt * v1.x), (p.y - 0.5 * dt * v1.y), (p.z - 0.5 * dt * v1.z));
-    SingleVector v2(bilerp(N, vel, p1));
+    SingleVector v2(trilerp(N, vel, p1));
     SingleVector p2(p.x - 0.75 * dt * v2.x, p.y - 0.75 * dt * v2.y, p.z - 0.75 * dt * v2.z);
-    SingleVector v3(bilerp(N, vel, p2));
+    SingleVector v3(trilerp(N, vel, p2));
     //The following lines make equal p to...
     // a 1 .. 2 .. 3 is just each seperated part of equation split up
     //p = p + (-1.f) * dt * ((2.f / 9.f) * v1 + (1.f / 3.f) * v2 + (4.f / 9.f) * v3);
@@ -330,6 +340,7 @@ SingleVector backtrace(const int N, SingleVector p, float dt, VectorField& vel)
     
     return p;
 }
+//Move fluid density with respect to vector field velocities
 void advection(const int N, VectorField& vel, ScalarField& qf, ScalarField& new_qf,
     float dt, float damping = 0.9999f)
 {
@@ -342,12 +353,13 @@ void advection(const int N, VectorField& vel, ScalarField& qf, ScalarField& new_
                 SingleVector p(i + .5f, j + .5f, k + .5f);
                 p = backtrace(N, p, dt, vel);
                 p = p.FullScalarMultiply(damping);
-                //Aquire new values from calculated backtrace p and bilerp new value into respective cell
-                new_qf.v[IXY(i, j, k, N)] = bilerpSCALAR(N, qf, p);
+                //Aquire new values from calculated backtrace p and trilerp new value into respective cell
+                new_qf.v[IXY(i, j, k, N)] = trilerpSCALAR(N, qf, p);
             }
         }
     }
 }
+//Move fluid velocity with respect to other vector field velocities
 void advection_velocity( int N, VectorField& vel, VectorField& new_qf, float dt,
     float damping = 0.9999f)
 {
@@ -364,7 +376,7 @@ void advection_velocity( int N, VectorField& vel, VectorField& new_qf, float dt,
                 {
                     SingleVector p(i, j + 0.5f, k + 0.5f);
                     p = backtrace_velocity(N, p, dt, vel).FullScalarMultiply(damping);
-                    new_qf.x[IXY(i, j, k, N)] = bilerp_velocity(N, vel, p, 0) * damping;
+                    new_qf.x[IXY(i, j, k, N)] = trilerp_velocity(N, vel, p, 0) * damping;
                 }
                 if (j == 0 || j == N - 1)
                     new_qf.y[IXY(i, j, k, N)] = 0.0f;
@@ -372,7 +384,7 @@ void advection_velocity( int N, VectorField& vel, VectorField& new_qf, float dt,
                 {
                     SingleVector p(i + 0.5f, j, k + 0.5f);
                     p = backtrace_velocity(N, p, dt, vel).FullScalarMultiply(damping);
-                    new_qf.y[IXY(i, j, k, N)] = bilerp_velocity(N, vel, p, 1) * damping;
+                    new_qf.y[IXY(i, j, k, N)] = trilerp_velocity(N, vel, p, 1) * damping;
                 }
                 if (k == 0 || k == N - 1)
                     new_qf.z[IXY(i, j, k, N)] = 0.0f;
@@ -380,13 +392,14 @@ void advection_velocity( int N, VectorField& vel, VectorField& new_qf, float dt,
                 {
                     SingleVector p(i + 0.5f, j + 0.5f, k);
                     p = backtrace_velocity(N, p, dt, vel).FullScalarMultiply(damping);
-                    new_qf.z[IXY(i, j, k, N)] = bilerp_velocity(N, vel, p, 2) * damping;
+                    new_qf.z[IXY(i, j, k, N)] = trilerp_velocity(N, vel, p, 2) * damping;
                 }
             }
         }
     }
    
 }
+//Get the value of velocity divergence ,net velocity away from cell positive = outflow, negative = inflow, 0 is optimal.
 void get_divergence(const int N, VectorField& vel, ScalarField& divergence)
 {
     for (int k = 0; k < N; k++)
@@ -405,7 +418,7 @@ void get_divergence(const int N, VectorField& vel, ScalarField& divergence)
             }
         }
 }
-
+//Iteratively spread velocity curl gradient across vector field
 void vorticity_confinement(const int N, VectorField& vel, ScalarField& curl,
     VectorField& curl_force, float  dt)
 {
@@ -453,8 +466,7 @@ void vorticity_confinement(const int N, VectorField& vel, ScalarField& curl,
                 float p4 = 0;
                 float p5 = 0;
                 float p6 = 0;
-                //Gauss Siedel
-                //p0 = (p1 + p2 + p3 + p4 + p5 + p6 - div) / 6
+                //Gauss Siedel solver
                 for (int i = 0; i < 80; i++)
                 {
                     p0 = (p1 + p2 + p3 + p4 + p5 + p6) - div / 4;

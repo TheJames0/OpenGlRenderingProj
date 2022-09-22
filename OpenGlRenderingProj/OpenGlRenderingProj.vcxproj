@@ -145,7 +145,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EBO.h" />
-    <ClInclude Include="Fluid.h" />
     <ClInclude Include="New_Fluid.h" />
     <ClInclude Include="shaderClass.h" />
     <ClInclude Include="VAO.h" />

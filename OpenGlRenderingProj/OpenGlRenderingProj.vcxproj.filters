@@ -47,9 +47,6 @@
     <ClInclude Include="EBO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Fluid.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="New_Fluid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
