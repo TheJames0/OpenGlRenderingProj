@@ -1,12 +1,8 @@
-//------- Ignore this ----------
-#include<filesystem>
-//namespace fs = std::filesystem;
-//------------------------------
+
 #include<iostream>
 #include<glad.h>
 #include<GLFW/glfw3.h>
 #include<glm/glm.hpp>
-#include<glm/gtc/matrix_transform.hpp>
 #include<glm/gtc/type_ptr.hpp>
 #include<random>
 #include"shaderClass.h"
@@ -16,10 +12,8 @@
 #include <vector>
 #include "New_Fluid.h"
 
-//3 dimensional grid arraysize
+//Declare global variables
 const int arraysize = N;
-
-
 const unsigned int width = 1920;
 const unsigned int height = 1080;
 float rotation;
@@ -28,15 +22,11 @@ float translateX;
 float translateY;
 float translateZ;
 
-struct array3D {
-	int n = arraysize;
-	float a[arraysize][arraysize][arraysize];
-};
 void keycallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-void cubeMarch(std::vector<GLfloat> &vertices,std::vector<GLint> &indices,ScalarField& arr,std::vector<GLfloat> &vertexalpha);
+void cubeMarch(std::vector<GLfloat> &vertices,std::vector<GLint> &indices,ScalarField& arr);
 //LOOKUP TABLES --------------------------------------
 /*
-credit goes to paul bourke sourced from http ://paulbourke.net/geometry/polygonise/
+credits go to paul bourke sourced from http ://paulbourke.net/geometry/polygonise/
 */
 
 //First Dimension is one of 8 corners
@@ -51,6 +41,7 @@ int CornerTable[8][3] = {
 	  {1, 1, 1},
 	  {0, 1, 1}
 };
+//Edge Index table points to the table above and simplifies process.
 int EdgeIndexes[12][2] = {
 	{0,1},{1,2},{3,2},{0,3},{4,5} ,{5,6} ,{7,6} ,{4,7}, {0,4} ,{1,5} ,{2,6} ,{3,7}
 };
@@ -335,14 +326,9 @@ int TriangleTable[256][16]=
   {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
 
 };
+//Vectors add float coordinates to dynamic stack.
 // Vertices coordinates
-
 std::vector<GLfloat> vertices;
-
-//Alpha VBO
-
-std::vector<GLfloat> vertexalpha;
-
 // Indices for vertices order
 std::vector<GLint> indices;
 
@@ -390,63 +376,25 @@ int main()
 	// Generates Vertex Array Object and binds it
 	VAO VAO1;
 	VAO1.Bind();
-
-	
-	//VAO1.LinkAttrib(VBO1, 1, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-	//VAO1.LinkAttrib(VBO1, 2, 2, GL_FLOAT, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-	// Unbind all to prevent accidentally modifying them
-	
-
 	// Gets ID of uniform called "scale"
 	GLuint uniID = glGetUniformLocation(shaderProgram.ID, "scale");
-
-	/*
-	* I'm doing this relative path thing in order to centralize all the resources into one folder and not
-	* duplicate them between tutorial folders. You can just copy paste the resources from the 'Resources'
-	* folder and then give a relative path from this folder to whatever resource you want to get to.
-	* Also note that this requires C++17, so go to Project Properties, C/C++, Language, and select C++17
-	*/
-
-	//std::string parentDir = (fs::current_path().fs::path::parent_path()).string();
-	//std::string texPath = "/Resources/YoutubeOpenGL 7 - Going 3D/";
-
-	// Texture
-	
-	//
-	//Texture brickTex((parentDir + texPath + "brick.png").c_str(), GL_TEXTURE_2D, GL_TEXTURE0, GL_RGBA, GL_UNSIGNED_BYTE);
-	//brickTex.texUnit(shaderProgram, "tex0", 0);
-
-// Original code from the tutorial
-/*Texture brickTex("brick.png", GL_TEXTURE_2D, GL_TEXTURE0, GL_RGBA, GL_UNSIGNED_BYTE);
-brickTex.texUnit(shaderProgram, "tex0", 0);*/
-
 // Variables that help the rotation of the pyramid
 
 double prevTime = glfwGetTime();
 
 // Enables the Depth Buffer
 glEnable(GL_DEPTH_TEST);
-
-
-//GENERATE 3D Test ARRAY 
-// 
+// set n from globals
 const int n = arraysize;
-array3D tstarray;
-
 //INIT FLUID
-
-
-// update time delta
+// update sim timestep
 float dt = 0.00000000001f;
 // interval between each grid
 float dx = 1.f;
 float damping = 0.999999f;
 // number of iteration in Gauss-Sidel method
 int p_solver_iters = 240;
-float g = -9.8f;
-
-const float vorticity_strength = 80.0f;
-
+//Vector field and scalar field struct type declarations, defined in New_Fluid.h
 VectorField vel;
 VectorField new_vel;
 VectorField vorticity_force;
@@ -456,21 +404,13 @@ ScalarField pressure;
 ScalarField new_pressure;
 ScalarField dye;
 ScalarField new_dye;
-
-
-
-glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-glEnable(GL_BLEND);
-
-
-
-
 // Main while loop
 while (!glfwWindowShouldClose(window))
 {
 	
-
+	//Create velocity source
 	vel.y[IXY((n / 2), 6, (n / 2), n)] = -200;
+	//Create dye source
 	for (int x = 0; x < n; x++)
 		for (int y = 0; y < n; y++)
 		for (int z = 0; z < n; z++)
@@ -479,16 +419,15 @@ while (!glfwWindowShouldClose(window))
 			dye.v[IXY(n/2, 7, n/2, n)] = 1;
 			
 		}
-
-
-	//Update Fluid
+	//Pushes velocity vectors 'downstream'
 	advection_velocity(n, vel, new_vel, dt, damping);
-	
+	//Pushes dye scalar 'downstream'
 	advection(n, vel, dye,new_dye, dt, damping);
 	vel.swap(new_vel);
 	dye.swap(new_dye);
-	//add src
-	
+	//Iterative solver to remove divergence and get curl
+	vorticity_confinement(n, vel, curl, vorticity_force, dt);
+	//get divergence for pressure gradient
 	get_divergence(N, vel, divergence);
 	
 	
@@ -500,7 +439,7 @@ while (!glfwWindowShouldClose(window))
 	}
 	// apply pressure to velocity field
 	subtract_gradient(n ,vel, pressure);
-	vorticity_confinement(n, vel, curl, vorticity_force, vorticity_strength, dt);
+
 	// Specify the color of the background
 	glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
 	// Clean the back buffer and depth buffer
@@ -512,18 +451,17 @@ while (!glfwWindowShouldClose(window))
 	double crntTime = glfwGetTime();
 	vertices.clear();
 	indices.clear();
-	vertexalpha.clear();
-	cubeMarch(vertices, indices,dye,vertexalpha);
+	cubeMarch(vertices, indices,dye);
 
 	// Generates Vertex Buffer Object and links it to vertices
 	VBO VBO1(vertices, vertices.size() * sizeof(GLfloat));
 	// Generates Element Buffer Object and links it to indices
 	EBO EBO1(indices, indices.size() * sizeof(GLint));
 	//Link vertex alpha data
-	VBO ABO1(vertexalpha, vertices.size() * sizeof(GLfloat));
+	//VBO ABO1(vertexalpha, vertices.size() * sizeof(GLfloat));
 	// Links VBO attributes such as coordinates and colors to VAO
 	VAO1.LinkAttrib(VBO1, 0, 3, GL_FLOAT, 3 * sizeof(float), (void*)0);
-	VAO1.LinkAttrib(ABO1, 1, 3, GL_FLOAT, 3*sizeof(float), (void*)0);
+	//VAO1.LinkAttrib(ABO1, 1, 3, GL_FLOAT, 3*sizeof(float), (void*)0);
 	// Initializes matrices so they are not the null matrix
 	glm::mat4 model = glm::mat4(1.0f);
 	glm::mat4 view = glm::mat4(1.0f);
@@ -532,7 +470,7 @@ while (!glfwWindowShouldClose(window))
 	// Assigns different transformations to each matrix
 	model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
 	model = glm::rotate(model, glm::radians(rotationvert), glm::vec3(0.0f, 0.0f, 1.0f));
-	view = glm::translate(view, glm::vec3(translateX-0.3,translateY-0.3, translateZ-1));
+	view = glm::translate(view, glm::vec3(translateX + (n / 60),translateY - (n / 30), translateZ - (n/30)));
 	proj = glm::perspective(glm::radians(100.0f), (float)width / height, 0.1f, 100.0f);
 
 	// Outputs the matrices into the Vertex Shader
@@ -545,8 +483,6 @@ while (!glfwWindowShouldClose(window))
 
 	// Assigns a value to the uniform; NOTE: Must always be done after activating the Shader Program
 	glUniform1f(uniID, 0.5f);
-	// Binds texture so that is appears in rendering
-	//brickTex.Bind();
 	// Bind the VAO so OpenGL knows to use it
 	VAO1.Bind();
 	// Draw primitives, number of indices, datatype of indices, index of indices
@@ -572,7 +508,8 @@ float sampleDye(int x, int y, int z, ScalarField &arr)
 {
 	return  arr.v[IXY(x, y, z, arraysize)];
 }
-void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,ScalarField &arr, std::vector<GLfloat>& vertexalpha)
+//Method loops through array and for each cell determines neighbouring cell values and creates certain voxel shape.
+void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,ScalarField &arr)
 {
 	for (int x = 1; x < arraysize - 1; x++)
 	{
@@ -655,9 +592,7 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,Scala
 							vertices.push_back(vert3pos[0] / 60);
 							vertices.push_back(vert3pos[1]/ 60);
 							vertices.push_back(vert3pos[2]/ 60);
-							vertexalpha.push_back(averaged);
-							vertexalpha.push_back(averaged);
-							vertexalpha.push_back(averaged);
+
 							
 							indices.push_back(indices.size());
 							indices.push_back(indices.size());
@@ -671,22 +606,9 @@ void cubeMarch(std::vector<GLfloat>& vertices, std::vector<GLint>& indices,Scala
 
 			}
 		}
+	}
 }
-	//XYZ gridspace render loop
-	
-				
-			
-				
-				
-
-
-
-
-
-
-	
-	
-}
+//Keyboard input
 void keycallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	const GLfloat rotationspeed = 2;

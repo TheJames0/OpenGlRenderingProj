@@ -407,7 +407,7 @@ void get_divergence(const int N, VectorField& vel, ScalarField& divergence)
 }
 
 void vorticity_confinement(const int N, VectorField& vel, ScalarField& curl,
-    VectorField& curl_force,  float curl_strength, float  dt)
+    VectorField& curl_force, float  dt)
 {
     static const float scale = 1e-3f;
     for (int i = 0; i < N; i++)
