@@ -47,7 +47,7 @@ int main()
 	// So that means we only have the modern functions
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	// Create a GLFWwindow object of desired width and height
-	GLFWwindow* window = glfwCreateWindow(1920, 1080, "Cube Raymarch", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(1920, 1080, "Fluid Simulation", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
