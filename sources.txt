@@ -1,0 +1,3 @@
+https://www.codeproject.com/Articles/352270/Getting-Started-with-Volume-Rendering-using-OpenGL
+https://www.diva-portal.org/smash/get/diva2:1647354/FULLTEXT02
+Raytracing on GPU pdf

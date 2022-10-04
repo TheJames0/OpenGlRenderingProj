@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-const int N = 35;
+const int N = 100;
 
 //Used to represent all vector elements and store in array.
 struct VectorField 
@@ -458,7 +458,7 @@ void vorticity_confinement(const int N, VectorField& vel, ScalarField& curl,
                 SingleVector hb = sample(N, vel, i, j - 1, k - 1);
                 SingleVector ib = sample(N, vel, i + 1, j - 1, k - 1);
 
-                float div = ((et.y - eb.y) + (bm.z - hm.z) + (fm.x - dm.x )) / 3;
+                float div = ((et.y - eb.y) + (bm.z - hm.z) + (fm.x - dm.x )) / 4;
                 float p0 = 0;
                 float p1 = 0;
                 float p2 = 0;
